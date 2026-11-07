@@ -328,6 +328,19 @@ export const initialRequests: StudentRequest[] = [
     ],
   },
   {
+    id: 'req_2003',
+    number: 'Д-2026-2003',
+    typeId: 'r_session',
+    studentId: 's_mark',
+    createdAt: hoursAgo(2),
+    etaDays: 2,
+    fields: { purpose: 'Работодатель', delivery: 'Электронно (PDF)' },
+    status: 'new',
+    events: [
+      { id: uid('ev'), status: 'new', at: hoursAgo(2), comment: 'Заявка создана' },
+    ],
+  },
+  {
     id: 'req_2002',
     number: 'Д-2026-2002',
     typeId: 'r_social',
