@@ -216,13 +216,6 @@ docs/
 
 Сборка использует `base: './'` и HashRouter, поэтому работает из подпапки.
 
-### Другие варианты
-
-- Cloudflare Pages: build command `npm run build`, output `dist`.
-- Timeweb Cloud, Beget, VK Cloud — любой статический хостинг, папка `dist`.
-- Vercel и Netlify подходят, но проверьте доступность из РФ без VPN.
-
-После деплоя проверьте вход, все разделы, экран 360 px и чужую заявку (403).
 
 ## Технологии
 
@@ -236,5 +229,4 @@ React 19, TypeScript, Vite, Tailwind CSS 4, React Router (HashRouter), lucide-re
 npm run dev       # разработка
 npm run build     # проверка типов и сборка
 npm run preview   # предпросмотр сборки
-npm run lint      # oxlint
 ```
