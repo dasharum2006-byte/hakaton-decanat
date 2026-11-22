@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, FilePlus2, ShieldCheck } from 'lucide-react'
 import { requestTypes } from '../data/seed'
 import { useAuth } from '../lib/auth'
 import { useData } from '../lib/store'
 import { cn } from '../lib/utils'
 import { PageHeader } from '../components/ui'
+import { BackLink } from '../components/BackLink'
 import { RequestIcon } from '../components/request-ui'
 import type { RequestType } from '../lib/types'
 
@@ -56,12 +57,9 @@ export function RequestNew() {
 
   return (
     <div className="animate-rise">
-      <Link to="/requests" className="btn-ghost -ml-2 mb-3">
-        <ArrowLeft size={16} />
-        К заявкам
-      </Link>
+      <BackLink to="/requests" label="К заявкам" className="mb-3" />
 
-      <PageHeader title="Новая заявка" subtitle="Оформление занимает меньше минуты" />
+      <PageHeader title="Новая заявка" />
 
       {/* Шаги */}
       <ol className="mb-5 flex items-center gap-2">
@@ -98,7 +96,7 @@ export function RequestNew() {
               onClick={() => selectType(t)}
               className="card flex items-start gap-3 p-4 text-left transition-transform hover:-translate-y-0.5"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-bg text-primary">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-primary">
                 <RequestIcon name={t.icon} />
               </span>
               <span className="min-w-0 flex-1">
@@ -118,7 +116,7 @@ export function RequestNew() {
       {step === 1 && type && (
         <div className="card p-4 sm:p-5">
           <div className="mb-4 flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-bg text-primary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-primary">
               <RequestIcon name={type.icon} />
             </span>
             <div>

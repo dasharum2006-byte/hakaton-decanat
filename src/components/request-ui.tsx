@@ -66,7 +66,7 @@ export function RequestTimeline({
                 active
                   ? e.status === 'rejected'
                     ? 'border-danger bg-danger-bg text-danger'
-                    : 'border-primary bg-primary text-white'
+                    : 'border-primary bg-primary text-primary-fg'
                   : 'border-border bg-surface text-muted',
               )}
             >

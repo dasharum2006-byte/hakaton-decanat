@@ -1,10 +1,22 @@
 import { X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { cn, avatarStyle, initials } from '../lib/utils'
 import { REQUEST_STATUS_META, useData } from '../lib/store'
-import type { RequestStatus } from '../lib/types'
+import type { LessonType, RequestStatus } from '../lib/types'
 
 export type Tone = 'default' | 'info' | 'ok' | 'warn' | 'danger'
+
+/** Красочный бейдж типа занятия */
+const lessonTypeClasses: Record<LessonType, string> = {
+  Лекция: 'bg-blue-700 text-white border-blue-700 dark:bg-blue-400 dark:text-blue-950 dark:border-blue-400',
+  Практика: 'bg-orange-500 text-white border-orange-500',
+  Лабораторная: 'bg-violet-400 text-white border-violet-400',
+  Семинар: 'bg-blue-900 text-white border-blue-900 dark:bg-blue-400 dark:text-blue-950 dark:border-blue-400',
+  Консультация: 'bg-pink-500 text-white border-pink-500 dark:bg-pink-400 dark:text-pink-950 dark:border-pink-400',
+  Зачёт: 'bg-red-500 text-white border-red-500',
+  Экзамен: 'bg-red-500 text-white border-red-500',
+}
 
 const toneClasses: Record<Tone, string> = {
   default: 'bg-surface-2 text-muted border-border',
@@ -39,6 +51,19 @@ export function Badge({
   )
 }
 
+export function LessonTypeBadge({ type }: { type: LessonType }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none',
+        lessonTypeClasses[type],
+      )}
+    >
+      {type}
+    </span>
+  )
+}
+
 export function StatusBadge({ status }: { status: RequestStatus }) {
   const meta = REQUEST_STATUS_META[status]
   return <Badge tone={meta.tone}>{meta.label}</Badge>
@@ -48,10 +73,15 @@ export function Avatar({
   name,
   hue = 250,
   size = 'md',
+  className,
+  src,
 }: {
   name: string
   hue?: number
   size?: 'sm' | 'md' | 'lg'
+  className?: string
+  /** Пользовательская иконка (data-URL PNG) вместо инициалов */
+  src?: string | null
 }) {
   const sizes = {
     sm: 'h-9 w-9 text-xs',
@@ -61,13 +91,18 @@ export function Avatar({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-2xl font-bold text-white shadow-sm',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white shadow-sm',
         sizes[size],
+        className,
       )}
       style={avatarStyle(hue)}
       aria-hidden
     >
-      {initials(name)}
+      {src ? (
+        <img src={src} alt="" className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        initials(name)
+      )}
     </span>
   )
 }
@@ -134,7 +169,7 @@ export function EmptyState({
   return (
     <div className="card flex flex-col items-center gap-2 px-6 py-10 text-center">
       {icon && (
-        <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-2 text-muted">
+        <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-muted">
           {icon}
         </div>
       )}
@@ -149,10 +184,13 @@ export function ProgressBar({
   value,
   tone = 'primary',
   className,
+  trackClassName,
 }: {
   value: number
   tone?: 'primary' | 'ok' | 'warn' | 'danger'
   className?: string
+  /** Класс фона «дорожки» (по умолчанию светло-серый) */
+  trackClassName?: string
 }) {
   const colors: Record<string, string> = {
     primary: 'bg-primary',
@@ -161,7 +199,13 @@ export function ProgressBar({
     danger: 'bg-danger',
   }
   return (
-    <div className={cn('h-2 w-full overflow-hidden rounded-full bg-surface-2', className)}>
+    <div
+      className={cn(
+        'h-2 w-full overflow-hidden rounded-full',
+        trackClassName ?? 'bg-surface-2',
+        className,
+      )}
+    >
       <div
         className={cn('h-full rounded-full transition-all duration-500', colors[tone])}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
@@ -234,7 +278,7 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         aria-label="Закрыть"
@@ -256,7 +300,8 @@ export function Modal({
         <div className="overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="border-t border-border px-5 py-4">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

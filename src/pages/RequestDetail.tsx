@@ -1,10 +1,9 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   CalendarClock,
   FileText,
   MapPin,
-  ShieldCheck,
   UserRound,
   XCircle,
 } from 'lucide-react'
@@ -12,14 +11,16 @@ import { useAuth } from '../lib/auth'
 import { useData } from '../lib/store'
 import { requestTypes, students } from '../data/seed'
 import { formatDate, formatDateTime, plural } from '../lib/utils'
-import { Badge, PageHeader, StatusBadge } from '../components/ui'
+import { Modal, PageHeader, StatusBadge } from '../components/ui'
 import { RequestIcon, RequestTimeline } from '../components/request-ui'
+import { BackLink } from '../components/BackLink'
 import { Forbidden } from './Forbidden'
 
 export function RequestDetail() {
   const { id } = useParams()
   const { account, student } = useAuth()
   const { getRequest, cancelRequest, setStatus } = useData()
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   const req = id ? getRequest(id) : undefined
 
@@ -56,10 +57,11 @@ export function RequestDetail() {
 
   return (
     <div className="animate-rise">
-      <Link to={isStaff ? '/staff' : '/requests'} className="btn-ghost -ml-2 mb-3">
-        <ArrowLeft size={16} />
-        {isStaff ? 'Все заявки' : 'Мои заявки'}
-      </Link>
+      <BackLink
+        to={isStaff ? '/staff' : '/requests'}
+        label={isStaff ? 'Все заявки' : 'Мои заявки'}
+        className="mb-3"
+      />
 
       <PageHeader
         title={type?.title ?? 'Заявка'}
@@ -69,7 +71,7 @@ export function RequestDetail() {
 
       <section className="card mb-3 p-4">
         <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info-bg text-primary">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-primary">
             {type && <RequestIcon name={type.icon} size={20} />}
           </span>
           <div className="min-w-0 flex-1">
@@ -84,7 +86,7 @@ export function RequestDetail() {
         {inWork && (
           <button
             className="btn-soft mt-3 w-full py-2 text-xs text-danger hover:text-danger"
-            onClick={() => cancelRequest(req.id)}
+            onClick={() => setConfirmCancel(true)}
           >
             <XCircle size={14} />
             Отменить заявку
@@ -139,14 +141,6 @@ export function RequestDetail() {
         </dl>
       </section>
 
-      <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3">
-        <ShieldCheck size={16} className="mt-0.5 shrink-0 text-ok" />
-        <p className="text-[11px] leading-relaxed text-muted">
-          Заявка доступна только её автору{isStaff ? ' и сотрудникам деканата' : ''}.
-          Если открыть ссылку из другого аккаунта, сервер вернёт отказ.
-        </p>
-      </div>
-
       {isStaff && (
         <section className="card mt-3 p-4">
           <h2 className="mb-2 text-sm font-bold">Изменить статус (демо)</h2>
@@ -183,10 +177,33 @@ export function RequestDetail() {
         <MapPin size={13} />
         Выдача документов: кабинет 231, пн–пт 10:00–17:00
       </div>
-      <div className="mt-1 flex items-center gap-2 text-[11px] text-muted">
-        <Badge tone="default">{req.number}</Badge>
-        <span>— номер для обращения в деканат</span>
-      </div>
+
+      <Modal
+        open={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        title="Отмена заявки"
+        footer={
+          <div className="flex gap-2">
+            <button className="btn-soft flex-1" onClick={() => setConfirmCancel(false)}>
+              Оставить
+            </button>
+            <button
+              className="btn-danger flex-1"
+              onClick={() => {
+                cancelRequest(req.id)
+                setConfirmCancel(false)
+              }}
+            >
+              Отменить заявку
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-muted">
+          Вы точно хотите отменить заявку {req.number}? Вернуть её не получится — придётся
+          создавать новую.
+        </p>
+      </Modal>
     </div>
   )
 }

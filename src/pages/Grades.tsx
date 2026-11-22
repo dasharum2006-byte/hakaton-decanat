@@ -2,26 +2,181 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  CalendarClock,
+  Atom,
+  Binary,
+  BookOpen,
   CheckCircle2,
-  GraduationCap,
-  RotateCcw,
-  TrendingUp,
+  ChevronRight,
+  CodeXml,
+  Crown,
+  Database,
+  Feather,
+  Globe,
+  Network,
+  Shapes,
+  Sigma,
+  Workflow,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { gpa } from '../lib/assistant'
-import { cn, formatDate, formatGpa, plural, timeUntil } from '../lib/utils'
-import { Badge, PageHeader, ProgressBar, Segmented } from '../components/ui'
+import { gradeCircleClass, gradeCircleLabel } from '../lib/grades'
+import { cn, deadlineLabel, daysUntil, formatDate, formatGpa, plural } from '../lib/utils'
+import { PageHeader, Segmented } from '../components/ui'
 import type { Grade } from '../lib/types'
 
 type Filter = 'all' | 'closed' | 'progress' | 'debt'
 
-const gradeTone = (g: Grade) => {
-  if (g.status === 'debt') return 'danger'
-  if (g.status === 'in-progress') return 'warn'
-  if (g.grade === '5' || g.grade === 'Зачтено') return 'ok'
-  if (g.grade === '4') return 'info'
-  return 'default'
+/** Иконка предмета вместо кружка с «…» у дисциплин в процессе */
+function subjectIcon(subject: string) {
+  const size = 19
+  if (/курсовая/i.test(subject)) return <BookOpen size={size} />
+  if (/проектная/i.test(subject)) return <Workflow size={size} />
+  if (/история/i.test(subject)) return <Crown size={size} />
+  if (/математический анализ/i.test(subject)) return <Sigma size={size} />
+  if (/алгебра|геометрия/i.test(subject)) return <Shapes size={size} />
+  if (/базы данных/i.test(subject)) return <Database size={size} />
+  if (/программирование|kotlin/i.test(subject)) return <CodeXml size={size} />
+  if (/сети/i.test(subject)) return <Network size={size} />
+  if (/web/i.test(subject)) return <Globe size={size} />
+  if (/физика/i.test(subject)) return <Atom size={size} />
+  if (/философия/i.test(subject)) return <Feather size={size} />
+  if (/дискретная/i.test(subject)) return <Binary size={size} />
+  return <BookOpen size={size} />
+}
+
+/** Кольцо прогресса зачётных единиц */
+function CreditsRing({ closed, total }: { closed: number; total: number }) {
+  const radius = 38
+  const circumference = 2 * Math.PI * radius
+  const ratio = total ? Math.min(1, closed / total) : 0
+  return (
+    <div
+      className="relative h-[96px] w-[96px] shrink-0"
+      role="img"
+      aria-label={`Закрыто ${closed} из ${total} зачётных единиц`}
+    >
+      <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90" aria-hidden>
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          fill="none"
+          strokeWidth="9"
+          className="stroke-surface-2"
+        />
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          fill="none"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - ratio)}
+          className="stroke-ok transition-[stroke-dashoffset] duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-extrabold leading-none">{closed}</span>
+        <span className="mt-1 text-[10px] font-semibold text-muted">из {total} з.е.</span>
+      </div>
+    </div>
+  )
+}
+
+function DisciplineCard({ grade, tone }: { grade: Grade; tone?: 'info' | 'danger' }) {
+  const passed = grade.status === 'closed' && grade.grade === 'Зачтено'
+  const inProgress = grade.status === 'in-progress'
+  return (
+    <Link
+      to={`/grades/${grade.id}`}
+      className={cn(
+        'card flex items-center gap-3 p-3.5 transition-transform hover:-translate-y-0.5',
+        tone === 'info' && 'border-primary/25 bg-info-bg',
+        tone === 'danger' && 'border-danger/30 bg-danger-bg',
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold',
+          inProgress ? 'bg-white text-primary' : gradeCircleClass(grade),
+        )}
+        aria-hidden
+      >
+        {inProgress ? subjectIcon(grade.subject) : gradeCircleLabel(grade)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">{grade.subject}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted">
+          {grade.control} · {grade.teacher}
+        </span>
+      </span>
+      {passed && <span className="shrink-0 text-[11px] font-bold text-ok">Зачтено</span>}
+      <ChevronRight size={16} className="shrink-0 text-muted" />
+    </Link>
+  )
+}
+
+function ProgressCard({
+  closed,
+  total,
+  average,
+  debts,
+}: {
+  closed: number
+  total: number
+  average: number
+  debts: number
+}) {
+  const noDebts = debts === 0
+  return (
+    <section className="card p-4">
+      <h2 className="text-base font-bold">Как у меня дела</h2>
+      <div className="mt-3 flex items-center gap-4">
+        <CreditsRing closed={closed} total={total} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Средний балл
+          </p>
+          <p className="mt-1">
+            <span className="text-2xl font-extrabold leading-none">{formatGpa(average)}</span>
+          </p>
+          <p className="mt-1 text-[11px] leading-snug text-muted">
+            {closed} из {total} зачётных единиц закрыто
+          </p>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          'mt-3 rounded-xl px-3 py-2.5 text-[12px] font-semibold leading-snug',
+          noDebts ? 'bg-ok-bg text-ok' : 'bg-danger-bg text-danger',
+        )}
+      >
+        <div className="flex items-start gap-2">
+          {noDebts ? (
+            <CheckCircle2 size={16} className="mt-px shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle size={16} className="mt-px shrink-0" aria-hidden />
+          )}
+          <span className="min-w-0 flex-1">
+            {noDebts
+              ? 'Долгов нет'
+              : `${debts} ${plural(debts, 'долг', 'долга', 'долгов')} · Пересдача в дополнительную сессию`}
+          </span>
+        </div>
+
+        {!noDebts && (
+          <Link
+            to="/requests/new?type=r_retake"
+            className="btn-danger mt-1.5 w-full px-3 py-2 text-xs"
+          >
+            Заявление на пересдачу
+          </Link>
+        )}
+      </div>
+    </section>
+  )
 }
 
 export function Grades() {
@@ -36,6 +191,7 @@ export function Grades() {
     const debts = grades.filter((g) => g.status === 'debt')
     const totalCredits = grades.reduce((s, g) => s + g.credits, 0)
     const closedCredits = closed.reduce((s, g) => s + g.credits, 0)
+    const average = gpa(grades)
     return {
       grades,
       closed,
@@ -43,8 +199,7 @@ export function Grades() {
       debts,
       totalCredits,
       closedCredits,
-      progress: Math.round((closedCredits / totalCredits) * 100),
-      average: gpa(grades),
+      average,
     }
   }, [student])
 
@@ -57,11 +212,10 @@ export function Grades() {
     return true
   })
 
-  const upcoming = student.deadlines
-    .filter((d) => new Date(d.at).getTime() > Date.now())
+  const todo = student.deadlines
+    .filter((d) => daysUntil(d.at) >= 0)
     .sort((a, b) => +new Date(a.at) - +new Date(b.at))
-
-  const sessionTone = stats.debts.length ? 'danger' : stats.inProgress.length > 2 ? 'warn' : 'ok'
+    .slice(0, 3)
 
   return (
     <div className="animate-rise">
@@ -70,147 +224,163 @@ export function Grades() {
         subtitle={`${student.group} · ${student.course} курс · осень 2026`}
       />
 
-      <section className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <div className="card p-3.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-            <TrendingUp size={12} /> Средний балл
-          </div>
-          <p className="mt-1 text-2xl font-extrabold">{formatGpa(stats.average)}</p>
-        </div>
-        <div className="card p-3.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-            <GraduationCap size={12} /> Закрыто
-          </div>
-          <p className="mt-1 text-2xl font-extrabold">
-            {stats.closedCredits}
-            <span className="text-sm font-semibold text-muted"> / {stats.totalCredits} з.е.</span>
-          </p>
-        </div>
-        <div className="card p-3.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-            <CalendarClock size={12} /> В процессе
-          </div>
-          <p className="mt-1 text-2xl font-extrabold">{stats.inProgress.length}</p>
-        </div>
-        <div className={cn('card p-3.5', stats.debts.length && 'border-danger/30')}>
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-            <AlertTriangle size={12} /> Долги
-          </div>
-          <p
-            className={cn(
-              'mt-1 text-2xl font-extrabold',
-              stats.debts.length ? 'text-danger' : 'text-ok',
-            )}
-          >
-            {stats.debts.length}
-          </p>
-        </div>
-      </section>
+      <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:gap-5">
+        {/* Правая колонка: главная карточка и дедлайны. На мобильном — сверху */}
+        <div className="min-[900px]:order-2 min-[900px]:w-[320px] min-[900px]:shrink-0">
+          <div className="space-y-3 min-[900px]:sticky min-[900px]:top-6">
+            <ProgressCard
+              closed={stats.closedCredits}
+              total={stats.totalCredits}
+              average={stats.average}
+              debts={stats.debts.length}
+            />
 
-      <section className="card mb-4 p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-bold">Здоровье сессии</h2>
-          <Badge tone={sessionTone}>
-            {sessionTone === 'ok' ? 'всё по плану' : sessionTone === 'warn' ? 'нужно внимание' : 'есть долги'}
-          </Badge>
-        </div>
-        <ProgressBar value={stats.progress} tone={sessionTone === 'ok' ? 'ok' : sessionTone} />
-        <p className="mt-2 text-[11px] text-muted">
-          Закрыто {stats.progress}% зачётных единиц. До конца семестра —{' '}
-          {plural(stats.inProgress.length, 'одна дисциплина', 'дисциплины', 'дисциплин')} в процессе.
-        </p>
-      </section>
-
-      {stats.debts.length > 0 && (
-        <section className="mb-4 rounded-2xl border border-danger/30 bg-danger-bg p-4">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="mt-0.5 shrink-0 text-danger" size={18} />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-danger">
-                {stats.debts.length} {plural(stats.debts.length, 'долг', 'долга', 'долгов')} — лучше не откладывать
-              </p>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-danger/85">
-                {stats.debts.map((d) => d.subject).join(', ')}. Пересдача в дополнительную сессию.
-              </p>
-              <Link to="/requests/new?type=r_retake" className="btn-primary mt-2.5 px-3 py-2 text-xs">
-                <RotateCcw size={14} />
-                Заявление на пересдачу
-              </Link>
-            </div>
+            <section className="card p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold">Нужно сделать</h2>
+                <Link
+                  to="/deadlines"
+                  className="text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Все дедлайны
+                </Link>
+              </div>
+              {todo.length ? (
+                <ul className="space-y-1">
+                  {todo.map((d) => {
+                    const days = daysUntil(d.at)
+                    const urgent = days <= 1
+                    return (
+                      <li key={d.id}>
+                        <Link
+                          to="/deadlines"
+                          className="-mx-1 flex items-start gap-2 rounded-lg px-1 py-1.5 transition-colors hover:bg-surface-2"
+                        >
+                          <span
+                            className={cn(
+                              'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                              urgent ? 'bg-danger' : days <= 3 ? 'bg-warn' : 'bg-border',
+                            )}
+                            aria-hidden
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold leading-tight">
+                              {d.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-muted">
+                              {d.subject} · {formatDate(d.at, { weekday: 'short' })}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              'shrink-0 text-[11px] font-bold first-letter:uppercase',
+                              urgent ? 'text-danger' : 'text-muted',
+                            )}
+                          >
+                            {deadlineLabel(d.at)}
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="text-[12px] text-muted">Ближайших дедлайнов нет.</p>
+              )}
+            </section>
           </div>
-        </section>
-      )}
+          {/* Зазор, чтобы плавающая кнопка «Спросить» не накрывала колонку */}
+          <div className="hidden min-[900px]:block min-[900px]:h-24" aria-hidden />
+        </div>
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Дисциплины</h2>
-        <Segmented
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: 'Все' },
-            { value: 'closed', label: 'Закрытые' },
-            { value: 'progress', label: 'В процессе' },
-            { value: 'debt', label: 'Долги' },
-          ]}
-        />
-      </div>
+        {/* Левая колонка: фильтры и дисциплины */}
+        <div className="min-w-0 flex-1 min-[900px]:order-1">
+          <div className="mb-3">
+            <Segmented
+              value={filter}
+              onChange={setFilter}
+              className="flex w-full [&>button]:flex-1 [&>button]:whitespace-nowrap [&>button]:px-1.5"
+              options={[
+                { value: 'all', label: 'Все' },
+                { value: 'progress', label: 'В процессе' },
+                { value: 'closed', label: 'Закрытые' },
+                { value: 'debt', label: 'Долги' },
+              ]}
+            />
+          </div>
 
-      <div className="mb-6 space-y-2">
-        {filtered.length ? (
-          filtered.map((g) => (
-            <article key={g.id} className="card flex items-center gap-3 p-3.5">
-              <span
-                className={cn(
-                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold',
-                  g.status === 'closed' && 'bg-ok-bg text-ok',
-                  g.status === 'in-progress' && 'bg-warn-bg text-warn',
-                  g.status === 'debt' && 'bg-danger-bg text-danger',
+          {filter === 'all' ? (
+            <div className="space-y-4">
+              {stats.debts.length > 0 && (
+                <section>
+                  <div className="mb-2 flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-danger">Долги</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {stats.debts.map((g) => (
+                      <DisciplineCard key={g.id} grade={g} tone="danger" />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-bold">В процессе</h2>
+                </div>
+                {stats.inProgress.length ? (
+                  <div className="space-y-2">
+                    {stats.inProgress.map((g) => (
+                      <DisciplineCard key={g.id} grade={g} tone="info" />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="card p-4 text-[12px] text-muted">
+                    Все дисциплины закрыты — можно отдыхать.
+                  </p>
                 )}
-              >
-                {g.status === 'closed' ? (g.grade === 'Зачтено' ? 'З' : g.grade) : g.status === 'debt' ? '!' : '…'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{g.subject}</p>
-                <p className="truncate text-[11px] text-muted">
-                  {g.control} · {g.credits} з.е. · {g.teacher}
-                </p>
-              </div>
-              <Badge tone={gradeTone(g)}>
-                {g.status === 'closed' ? (g.grade ?? 'закрыто') : g.status === 'debt' ? 'долг' : 'в процессе'}
-              </Badge>
-            </article>
-          ))
-        ) : (
-          <div className="card p-6 text-center text-sm text-muted">
-            <CheckCircle2 className="mx-auto mb-2 text-ok" size={22} />
-            В этой категории пусто
-          </div>
-        )}
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-bold">Закрытые</h2>
+                </div>
+                {stats.closed.length ? (
+                  <div className="space-y-2">
+                    {stats.closed.map((g) => (
+                      <DisciplineCard key={g.id} grade={g} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="card p-4 text-[12px] text-muted">Закрытых дисциплин пока нет.</p>
+                )}
+              </section>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.length ? (
+                filtered.map((g) => (
+                  <DisciplineCard
+                    key={g.id}
+                    grade={g}
+                    tone={
+                      g.status === 'debt' ? 'danger' : g.status === 'in-progress' ? 'info' : undefined
+                    }
+                  />
+                ))
+              ) : (
+                <div className="card p-6 text-center text-sm text-muted">
+                  <CheckCircle2 className="mx-auto mb-2 text-ok" size={22} />
+                  В этой категории пусто
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">Дедлайны</h2>
-      <div className="space-y-2">
-        {upcoming.length ? (
-          upcoming.map((d) => (
-            <article key={d.id} className="card flex items-center gap-3 p-3.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
-                <CalendarClock size={16} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{d.title}</p>
-                <p className="truncate text-[11px] text-muted">
-                  {d.subject} · {formatDate(d.at, { weekday: 'short' })}, {d.at.slice(11, 16)}
-                </p>
-              </div>
-              <Badge tone={new Date(d.at).getTime() - Date.now() < 3 * 86400000 ? 'warn' : 'default'}>
-                {timeUntil(d.at)}
-              </Badge>
-            </article>
-          ))
-        ) : (
-          <div className="card p-5 text-center text-sm text-muted">Ближайших дедлайнов нет</div>
-        )}
-      </div>
+      {/* Зазор под плавающую кнопку «Спросить» на телефоне */}
+      <div className="h-16 min-[900px]:hidden" aria-hidden />
     </div>
   )
 }

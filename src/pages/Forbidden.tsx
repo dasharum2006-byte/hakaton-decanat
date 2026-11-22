@@ -5,7 +5,7 @@ export function Forbidden() {
   return (
     <div className="animate-rise mx-auto mt-4 max-w-md">
       <div className="card p-6 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-danger-bg text-danger">
+        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-danger-bg text-danger">
           <Lock size={26} />
         </div>
         <h1 className="text-xl font-bold">403 · Нет доступа</h1>

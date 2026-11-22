@@ -4,7 +4,7 @@ export interface ToastItem {
   id: string
   title: string
   body?: string
-  tone?: 'default' | 'success' | 'warn'
+  tone?: 'default' | 'success' | 'warn' | 'danger'
 }
 
 type Listener = (t: ToastItem) => void

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { initialNotifications, initialRequests, requestTypeById } from '../data/seed'
-import { uid } from './utils'
+import { formatDateTime, plural, uid } from './utils'
 import { toast } from './toast'
 import { useAuth } from './auth'
 import type {
@@ -20,7 +20,7 @@ import type {
 } from './types'
 
 const REQUESTS_KEY = 'dekanat.v1.requests'
-const NOTIFS_KEY = 'dekanat.v1.notifications'
+const NOTIFS_KEY = 'dekanat.v2.notifications'
 
 const STEP_MS = 20_000
 const NEXT_STATUS: Partial<Record<RequestStatus, RequestStatus>> = {
@@ -85,7 +85,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     load(NOTIFS_KEY, initialNotifications),
   )
+  const requestsRef = useRef(requests)
   const startedAt = useRef(Date.now())
+  const [resetKey, setResetKey] = useState(0)
+
+  useEffect(() => {
+    requestsRef.current = requests
+  }, [requests])
 
   useEffect(() => {
     localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests))
@@ -105,54 +111,120 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  // Деко: заявка сама проходит статусы, чтобы жюри увидело процесс за минуту
+  // Деко: заявка сама проходит статусы, чтобы жюри увидело процесс за минуту.
+  // Побочные эффекты (уведомления, тосты) выполняются СНАРУЖИ setState-updater:
+  // в StrictMode React вызывает updater дважды, и раньше это давало дубли.
   useEffect(() => {
     const timer = setInterval(() => {
-      setRequests((prev) => {
-        let changed = false
-        const next = prev.map((req) => {
-          if (!req.autoProgress) return req
-          const nextStatus = NEXT_STATUS[req.status]
-          if (!nextStatus) return req
-          const last = req.events[req.events.length - 1]
-          if (!last) return req
-          if (Date.now() - new Date(last.at).getTime() < STEP_MS) return req
-          changed = true
-          const updated: StudentRequest = {
-            ...req,
-            status: nextStatus,
-            autoProgress: nextStatus !== 'ready',
-            events: [
-              ...req.events,
-              {
-                id: uid('ev'),
-                status: nextStatus,
-                at: new Date().toISOString(),
-                comment: STATUS_COMMENT[nextStatus],
-              },
-            ],
-          }
-          if (req.studentId === student?.id) {
-            addNotification({
-              studentId: req.studentId,
-              kind: 'request',
-              title: STATUS_TITLE[nextStatus],
-              body: `${req.number}: ${STATUS_COMMENT[nextStatus]}`,
-              href: `#/requests/${req.id}`,
-            })
-            toast({
-              title: STATUS_TITLE[nextStatus],
-              body: `${req.number} · ${STATUS_COMMENT[nextStatus]}`,
-              tone: nextStatus === 'ready' ? 'success' : 'default',
-            })
-          }
-          return updated
-        })
-        return changed ? next : prev
+      const prev = requestsRef.current
+      const changes: { req: StudentRequest; status: RequestStatus }[] = []
+      const next = prev.map((req) => {
+        if (!req.autoProgress) return req
+        const nextStatus = NEXT_STATUS[req.status]
+        if (!nextStatus) return req
+        const last = req.events[req.events.length - 1]
+        if (!last) return req
+        if (Date.now() - new Date(last.at).getTime() < STEP_MS) return req
+        const updated: StudentRequest = {
+          ...req,
+          status: nextStatus,
+          autoProgress: nextStatus !== 'ready',
+          events: [
+            ...req.events,
+            {
+              id: uid('ev'),
+              status: nextStatus,
+              at: new Date().toISOString(),
+              comment: STATUS_COMMENT[nextStatus],
+            },
+          ],
+        }
+        changes.push({ req: updated, status: nextStatus })
+        return updated
       })
+
+      if (!changes.length) return
+      requestsRef.current = next
+      setRequests(next)
+
+      for (const { req, status } of changes) {
+        if (req.studentId !== student?.id) continue
+        addNotification({
+          studentId: req.studentId,
+          kind: 'request',
+          title: STATUS_TITLE[status],
+          body: `${req.number}: ${STATUS_COMMENT[status]}`,
+          href: `#/requests/${req.id}`,
+        })
+        toast({
+          title: STATUS_TITLE[status],
+          body: `${req.number} · ${STATUS_COMMENT[status]}`,
+          tone: status === 'ready' ? 'success' : 'default',
+        })
+      }
     }, 1500)
     return () => clearInterval(timer)
   }, [student?.id, addNotification])
+
+  // Напоминания о дедлайнах: сегодня, завтра и за 2–3 дня
+  const toastedDeadlines = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!student) return
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const upcoming = student.deadlines
+      .map((deadline) => {
+        const at = new Date(deadline.at)
+        const day = new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()
+        return { deadline, days: Math.round((day - today) / 86400000) }
+      })
+      .filter(({ days }) => days >= 0 && days <= 3)
+
+    const fresh = upcoming.filter(
+      ({ deadline }) => !notifications.some((n) => n.id === `dl-${student.id}-${deadline.id}`),
+    )
+    if (!fresh.length) return
+
+    const created = fresh.map(({ deadline, days }) => {
+      const id = `dl-${student.id}-${deadline.id}`
+      const prefix =
+        days === 0
+          ? 'Сегодня дедлайн'
+          : days === 1
+            ? 'Завтра дедлайн'
+            : `Дедлайн через ${days} ${plural(days, 'день', 'дня', 'дней')}`
+      return {
+        id,
+        title: `${prefix}: ${deadline.title}`,
+        body: `${deadline.subject} · до ${formatDateTime(deadline.at)}`,
+      }
+    })
+
+    setNotifications((prev) => {
+      const ids = new Set(prev.map((n) => n.id))
+      const next = [...prev]
+      for (const item of created) {
+        if (ids.has(item.id)) continue
+        next.push({
+          id: item.id,
+          studentId: student.id,
+          kind: 'deadline',
+          title: item.title,
+          body: item.body,
+          at: new Date().toISOString(),
+          read: false,
+          href: '#/grades',
+        })
+      }
+      return next.length === prev.length ? prev : next
+    })
+
+    for (const item of created) {
+      if (toastedDeadlines.current.has(item.id)) continue
+      toastedDeadlines.current.add(item.id)
+      toast({ title: item.title, body: item.body, tone: 'danger' })
+    }
+  }, [student, notifications, resetKey])
 
   const createRequest = useCallback(
     (input: CreateRequestInput): StudentRequest | null => {
@@ -218,10 +290,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const setStatus = useCallback(
     (id: string, status: RequestStatus, comment?: string) => {
+      const target = requestsRef.current.find((r) => r.id === id)
+      const text = comment || STATUS_COMMENT[status]
+
       setRequests((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r
-          const updated: StudentRequest = {
+          return {
             ...r,
             status,
             autoProgress: false,
@@ -232,20 +307,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 id: uid('ev'),
                 status,
                 at: new Date().toISOString(),
-                comment: comment || STATUS_COMMENT[status],
+                comment: text,
               },
             ],
           }
-          addNotification({
-            studentId: r.studentId,
-            kind: 'request',
-            title: STATUS_TITLE[status],
-            body: `${r.number}: ${comment || STATUS_COMMENT[status]}`,
-            href: `#/requests/${r.id}`,
-          })
-          return updated
         }),
       )
+
+      if (target) {
+        addNotification({
+          studentId: target.studentId,
+          kind: 'request',
+          title: STATUS_TITLE[status],
+          body: `${target.number}: ${text}`,
+          href: `#/requests/${target.id}`,
+        })
+      }
       toast({ title: 'Статус обновлён', tone: 'success' })
     },
     [addNotification],
@@ -264,6 +341,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(NOTIFS_KEY)
     setRequests(initialRequests)
     setNotifications(initialNotifications)
+    toastedDeadlines.current.clear()
+    setResetKey((k) => k + 1)
     startedAt.current = Date.now()
     toast({ title: 'Демо-данные сброшены', tone: 'success' })
   }, [])

@@ -1,5 +1,15 @@
 import type { Deadline, Grade, Lesson, Student, StudentRequest } from './types'
-import { DAY_NAMES, formatDate, fromMinutes, isoDay, plural, toMinutes } from './utils'
+import {
+  DAY_NAMES,
+  addDays,
+  formatDate,
+  formatTime,
+  fromMinutes,
+  isoDay,
+  plural,
+  toMinutes,
+  weekParity,
+} from './utils'
 
 export interface AssistantCtx {
   student: Student
@@ -18,10 +28,10 @@ const has = (text: string, ...words: string[]) => words.some((w) => text.include
 function lessonLine(l: Lesson): string {
   const change = l.change
     ? l.change.kind === 'canceled'
-      ? ` ⛔ отменено (${l.change.note})`
+      ? ` · отменено (${l.change.note})`
       : l.change.kind === 'moved'
-        ? ` ⚠️ перенос (${l.change.note})`
-        : ` ⚠️ замена (${l.change.note})`
+        ? ` · перенос (${l.change.note})`
+        : ` · замена (${l.change.note})`
     : ''
   return `• ${l.start}–${l.end} · ${l.subject} (${l.type.toLowerCase()}) · ауд. ${l.room} · ${l.teacher}${change}`
 }
@@ -35,21 +45,25 @@ function lessonsText(lessons: Lesson[], emptyText: string): string {
     .join('\n')
 }
 
-function lessonsForDay(student: Student, day: number): Lesson[] {
-  return student.schedule.filter((l) => l.day === day)
+function lessonsForDay(student: Student, day: number, date = new Date()): Lesson[] {
+  const parity = weekParity(date)
+  return student.schedule.filter(
+    (l) => l.day === day && (!l.parity || l.parity === parity),
+  )
 }
 
 function nextLesson(student: Student): { lesson: Lesson; dayOffset: number } | null {
   const now = new Date()
   const nowMin = now.getHours() * 60 + now.getMinutes()
   const today = isoDay(now)
-  const todayLessons = lessonsForDay(student, today)
+  const todayLessons = lessonsForDay(student, today, now)
     .filter((l) => toMinutes(l.end) > nowMin)
     .sort((a, b) => toMinutes(a.start) - toMinutes(b.start))
   if (todayLessons.length) return { lesson: todayLessons[0], dayOffset: 0 }
   for (let offset = 1; offset <= 7; offset++) {
-    const day = ((today - 1 + offset) % 7) + 1
-    const list = lessonsForDay(student, day)
+    const date = addDays(now, offset)
+    const day = isoDay(date)
+    const list = lessonsForDay(student, day, date)
       .filter((l) => !l.change || l.change.kind !== 'canceled')
       .sort((a, b) => toMinutes(a.start) - toMinutes(b.start))
     if (list.length) return { lesson: list[0], dayOffset: offset }
@@ -101,9 +115,9 @@ function deadlinesText(deadlines: Deadline[]): string {
     .filter((d) => new Date(d.at).getTime() > Date.now())
     .sort((a, b) => +new Date(a.at) - +new Date(b.at))
     .slice(0, 4)
-  if (!upcoming.length) return 'Ближайших дедлайнов нет — можно выдохнуть 🎉'
+  if (!upcoming.length) return 'Ближайших дедлайнов нет.'
   return upcoming
-    .map((d) => `• ${d.title} — ${formatDate(d.at, { weekday: 'short' })}, до ${d.at.slice(11, 16)}`)
+    .map((d) => `• ${d.title} — ${formatDate(d.at, { weekday: 'short' })}, до ${formatTime(d.at)}`)
     .join('\n')
 }
 
@@ -175,14 +189,15 @@ export function assistantReply(input: string, ctx: AssistantCtx): AssistantReply
   if (has(text, 'статус', 'мои заявки', 'заявк', 'справка готова', 'готов ли')) {
     return {
       text: `Ваши активные заявки:\n${activeRequestsText(requests)}`,
-      chips: ['Открыть заявки', 'Заказать справку'],
+      chips: ['nav:/requests', 'Заказать справку'],
     }
   }
 
   // Окна
   if (has(text, 'окн', 'свободн', 'перерыв', 'между пар')) {
-    const day = has(text, 'завтра') ? (isoDay() % 7) + 1 : isoDay()
-    const lessons = lessonsForDay(student, day)
+    const date = has(text, 'завтра') ? addDays(new Date(), 1) : new Date()
+    const day = isoDay(date)
+    const lessons = lessonsForDay(student, day, date)
     const windows = freeWindows(lessons)
     const dayLabel = day === isoDay() ? 'Сегодня' : DAY_NAMES[day === 7 ? 0 : day]
     return {
@@ -193,24 +208,25 @@ export function assistantReply(input: string, ctx: AssistantCtx): AssistantReply
 
   // Расписание на сегодня
   if (has(text, 'сегодня', 'сейчас', 'что у меня') && !has(text, 'завтра', 'недел')) {
-    const lessons = lessonsForDay(student, isoDay())
+    const lessons = lessonsForDay(student, isoDay(), new Date())
     const next = nextLesson(student)
     const nextText =
       next && next.dayOffset === 0
         ? `\n\nБлижайшее: ${next.lesson.subject} в ${next.lesson.start}, ауд. ${next.lesson.room}.`
         : ''
     return {
-      text: `Сегодня, ${DAY_NAMES[isoDay() === 7 ? 0 : isoDay()].toLowerCase()}:\n${lessonsText(lessons, 'Пар нет — свободный день 🎉')}${nextText}`,
+      text: `Сегодня, ${DAY_NAMES[isoDay() === 7 ? 0 : isoDay()].toLowerCase()}:\n${lessonsText(lessons, 'Пар нет — свободный день.')}${nextText}`,
       chips: ['Когда окна?', 'Что завтра?', 'Мои долги'],
     }
   }
 
   // Расписание на завтра
   if (has(text, 'завтра')) {
-    const day = (isoDay() % 7) + 1
-    const lessons = lessonsForDay(student, day)
+    const date = addDays(new Date(), 1)
+    const day = isoDay(date)
+    const lessons = lessonsForDay(student, day, date)
     return {
-      text: `Завтра, ${DAY_NAMES[day === 7 ? 0 : day].toLowerCase()}:\n${lessonsText(lessons, 'Пар нет — можно посвятить день себе 🎉')}`,
+      text: `Завтра, ${DAY_NAMES[day === 7 ? 0 : day].toLowerCase()}:\n${lessonsText(lessons, 'Пар нет — свободный день.')}`,
       chips: ['Что сегодня?', 'Когда окна?'],
     }
   }
@@ -267,7 +283,11 @@ export function assistantReply(input: string, ctx: AssistantCtx): AssistantReply
     const subject = norm(lesson.subject)
     if (subject.length > 4 && text.includes(subject.split(' ')[0])) {
       const week = student.schedule
-        .filter((l) => norm(l.subject).includes(subject.split(' ')[0]))
+        .filter(
+          (l) =>
+            norm(l.subject).includes(subject.split(' ')[0]) &&
+            (!l.parity || l.parity === weekParity()),
+        )
         .sort((a, b) => a.day - b.day || toMinutes(a.start) - toMinutes(b.start))
       return {
         text: `${lesson.subject} на этой неделе:\n${lessonsText(week, 'В расписании нет.')}`,
@@ -278,9 +298,13 @@ export function assistantReply(input: string, ctx: AssistantCtx): AssistantReply
 
   // Сколько пар / нагрузка
   if (has(text, 'сколько пар', 'нагрузк', 'сколько занят')) {
-    const week = student.schedule.filter((l) => !l.change || l.change.kind !== 'canceled')
+    const week = student.schedule.filter(
+      (l) =>
+        (!l.parity || l.parity === weekParity()) &&
+        (!l.change || l.change.kind !== 'canceled'),
+    )
     return {
-      text: `На этой неделе ${week.length} ${plural(week.length, 'пара', 'пары', 'пар')}. Сегодня — ${lessonsForDay(student, isoDay()).length}.`,
+      text: `На этой неделе ${week.length} ${plural(week.length, 'пара', 'пары', 'пар')}. Сегодня — ${lessonsForDay(student, isoDay(), new Date()).length}.`,
       chips: ['Что сегодня?', 'Когда окна?'],
     }
   }

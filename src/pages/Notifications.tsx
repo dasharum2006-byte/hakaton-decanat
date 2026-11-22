@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, BellOff, CheckCheck, CalendarDays, FileText, Megaphone, Timer } from 'lucide-react'
+import { BellOff, CheckCheck, CalendarDays, FileText, Megaphone, Timer } from 'lucide-react'
 import { useData, notifyKindLabel } from '../lib/store'
 import { cn, timeAgo } from '../lib/utils'
 import { EmptyState, PageHeader, Segmented } from '../components/ui'
@@ -11,6 +11,42 @@ const icons = {
   request: FileText,
   deadline: Timer,
 } as const
+
+type Accent = 'move' | 'cancel' | 'deadline' | 'default'
+
+/** Цвет уведомления: перенос — жёлтый, отмена — красный, дедлайн — красная линия слева */
+function accentFor(n: { kind: string; title: string }): Accent {
+  if (n.kind === 'deadline') return 'deadline'
+  if (n.kind === 'schedule') {
+    if (/отмен/i.test(n.title)) return 'cancel'
+    if (/перенос|замен/i.test(n.title)) return 'move'
+  }
+  return 'default'
+}
+
+/** Классы для карточки уведомления по его типу */
+const accentCard: Record<Accent, string> = {
+  move: 'border-warn/30 bg-warn-bg',
+  cancel: 'border-danger/30 bg-danger-bg',
+  deadline: 'border-l-4 border-l-danger',
+  default: '',
+}
+
+/** Классы для кружка с иконкой */
+const accentDot: Record<Accent, string> = {
+  move: 'bg-warn-bg text-warn',
+  cancel: 'bg-danger-bg text-danger',
+  deadline: 'bg-danger-bg text-danger',
+  default: '',
+}
+
+/** Цвет подписи с типом уведомления */
+const accentLabel: Record<Accent, string> = {
+  move: 'text-warn',
+  cancel: 'text-danger',
+  deadline: 'text-danger',
+  default: '',
+}
 
 export function Notifications() {
   const { myNotifications, markRead, markAllRead, unreadCount } = useData()
@@ -29,7 +65,6 @@ export function Notifications() {
     <div className="animate-rise">
       <PageHeader
         title="Уведомления"
-        subtitle={unreadCount ? `Непрочитанных: ${unreadCount}` : 'Всё прочитано'}
         right={
           unreadCount > 0 ? (
             <button className="btn-soft px-3 py-2 text-xs" onClick={markAllRead}>
@@ -55,19 +90,26 @@ export function Notifications() {
         <div className="space-y-2">
           {list.map((n) => {
             const Icon = icons[n.kind]
+            const accent = accentFor(n)
             return (
               <button
                 key={n.id}
                 onClick={() => open(n.id, n.href)}
                 className={cn(
                   'card flex w-full items-start gap-3 p-3.5 text-left transition-transform hover:-translate-y-0.5',
-                  !n.read && 'border-primary/30 bg-info-bg/40',
+                  accentCard[accent],
+                  !n.read && accent === 'default' && 'border-primary/40 bg-primary/15',
+                  !n.read && 'ring-1 ring-primary/20',
                 )}
               >
                 <span
                   className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                    n.read ? 'bg-surface-2 text-muted' : 'bg-primary/10 text-primary',
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+                    accent !== 'default'
+                      ? accentDot[accent]
+                      : n.read
+                        ? 'bg-surface-2 text-muted'
+                        : 'bg-primary/10 text-primary',
                   )}
                 >
                   <Icon size={17} />
@@ -78,7 +120,12 @@ export function Notifications() {
                     {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
                   </span>
                   <span className="mt-0.5 block text-[12px] leading-snug text-muted">{n.body}</span>
-                  <span className="mt-1 block text-[10px] uppercase tracking-wide text-muted">
+                  <span
+                    className={cn(
+                      'mt-1 block text-[10px] uppercase tracking-wide',
+                      accentLabel[accent] || 'text-muted',
+                    )}
+                  >
                     {notifyKindLabel(n.kind)} · {timeAgo(n.at)}
                   </span>
                 </span>
@@ -94,11 +141,6 @@ export function Notifications() {
         />
       )}
 
-      <p className="mt-6 flex items-start gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-[11px] leading-relaxed text-muted">
-        <Bell size={15} className="mt-0.5 shrink-0 text-primary" />
-        Уведомления создаются внутри прототипа. Push-рассылок и внешних сервисов нет —
-        ключи и персональные данные не покидают демо.
-      </p>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-export type Role = 'student' | 'staff'
+export type Role = 'student' | 'staff' | 'teacher'
 
 export type LessonType =
   | 'Лекция'
@@ -27,6 +27,8 @@ export interface Lesson {
   room: string
   teacher: string
   change?: LessonChange
+  /** Если задано — пара идёт только в нечётную или только в чётную неделю */
+  parity?: 'odd' | 'even'
 }
 
 export type GradeStatus = 'closed' | 'in-progress' | 'debt'
@@ -49,7 +51,7 @@ export interface Deadline {
   subject: string
   /** ISO строка */
   at: string
-  kind: 'контрольная' | 'курсовая' | 'зачёт' | 'экзамен' | 'проект'
+  kind: 'контрольная' | 'курсовая' | 'зачёт' | 'экзамен' | 'проект' | 'практика'
 }
 
 export interface BaseAccount {
@@ -64,6 +66,16 @@ export interface BaseAccount {
   avatarHue: number
 }
 
+/** Работа из основной системы: контрольная, тестирование, коллоквиум */
+export interface Assessment {
+  id: string
+  subject: string
+  title: string
+  /** Период в ISO: с какого по какое число показывать работу */
+  from: string
+  to: string
+}
+
 export interface Student extends BaseAccount {
   role: 'student'
   faculty: string
@@ -75,7 +87,10 @@ export interface Student extends BaseAccount {
   admissionYear: number
   schedule: Lesson[]
   grades: Grade[]
+  /** Средний балл за прошлый семестр — для стрелки изменения */
+  prevAverage?: number
   deadlines: Deadline[]
+  assessments: Assessment[]
 }
 
 export interface Staff extends BaseAccount {
@@ -84,7 +99,15 @@ export interface Staff extends BaseAccount {
   faculty: string
 }
 
-export type Account = Student | Staff
+export interface Teacher extends BaseAccount {
+  role: 'teacher'
+  position: string
+  faculty: string
+  /** Дисциплины, которые ведёт преподаватель */
+  subjects: string[]
+}
+
+export type Account = Student | Staff | Teacher
 
 export type RequestStatus = 'new' | 'in_progress' | 'signed' | 'ready' | 'rejected'
 

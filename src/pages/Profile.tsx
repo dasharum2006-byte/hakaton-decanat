@@ -1,25 +1,25 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   BookOpen,
   Download,
   GraduationCap,
   LogOut,
   Mail,
-  Moon,
+  Plus,
   RotateCcw,
   ShieldCheck,
   Smartphone,
-  Sparkles,
-  Sun,
   UserRound,
   Users,
 } from 'lucide-react'
-import { useAuth, useTheme } from '../lib/auth'
+import { useAuth } from '../lib/auth'
 import { useData } from '../lib/store'
-import { Avatar, Badge, PageHeader } from '../components/ui'
+import { Avatar, Badge, Modal, PageHeader } from '../components/ui'
+import { fileToAvatar, removeAvatar, saveAvatar, useAvatar } from '../lib/avatar'
+import { toast } from '../lib/toast'
 import { gpa } from '../lib/assistant'
 import { formatGpa, plural } from '../lib/utils'
+import kittens from '../kittens2.png'
 
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -27,9 +27,14 @@ interface InstallPromptEvent extends Event {
 
 export function Profile() {
   const { account, student, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme()
-  const { resetDemo, myRequests } = useData()
+  const { resetDemo } = useData()
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null)
+  const [installHelp, setInstallHelp] = useState(false)
+  const [iconOpen, setIconOpen] = useState(false)
+  const [iconDraft, setIconDraft] = useState<string | null>(null)
+  const [iconError, setIconError] = useState<string | null>(null)
+  const [iconBusy, setIconBusy] = useState(false)
+  const avatarSrc = useAvatar(account?.id)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -42,61 +47,151 @@ export function Profile() {
 
   if (!account) return null
 
+  const pickIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setIconError(null)
+    setIconBusy(true)
+    try {
+      setIconDraft(await fileToAvatar(file))
+    } catch (err) {
+      setIconDraft(null)
+      setIconError(err instanceof Error ? err.message : 'Не удалось загрузить изображение')
+    } finally {
+      setIconBusy(false)
+    }
+  }
+
+  const applyIcon = () => {
+    if (!iconDraft) return
+    try {
+      saveAvatar(account.id, iconDraft)
+      toast({ title: 'Иконка профиля обновлена', tone: 'success' })
+      setIconOpen(false)
+      setIconDraft(null)
+    } catch (err) {
+      setIconError(err instanceof Error ? err.message : 'Не удалось сохранить иконку')
+    }
+  }
+
+  const dropIcon = () => {
+    removeAvatar(account.id)
+    setIconDraft(null)
+    setIconOpen(false)
+    toast({ title: 'Иконка профиля сброшена' })
+  }
+
   const debts = student?.grades.filter((g) => g.status === 'debt').length ?? 0
 
   return (
     <div className="animate-rise">
-      <PageHeader title="Профиль" subtitle="Данные студента и настройки кабинета" />
+      <div className="hidden lg:block">
+        <PageHeader title="Профиль" />
+      </div>
 
       <section className="card mb-3 overflow-hidden">
-        <div className="h-20 bg-gradient-to-r from-primary to-accent" />
+        <div className="relative h-32 overflow-hidden bg-surface-2 sm:h-44">
+          <img
+            src={kittens}
+            alt=""
+            aria-hidden
+            className="h-full w-full object-cover object-center"
+          />
+        </div>
         <div className="px-4 pb-4">
-          <div className="-mt-8 flex items-end justify-between gap-3">
-            <Avatar name={account.shortName} hue={account.avatarHue} size="lg" />
-            {account.role === 'student' ? (
-              <Badge tone="info">
-                <GraduationCap size={12} />
-                {student?.group}
-              </Badge>
-            ) : (
-              <Badge tone="ok">
-                <ShieldCheck size={12} />
-                сотрудник
-              </Badge>
-            )}
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIconDraft(null)
+                setIconError(null)
+                setIconOpen(true)
+              }}
+              className="relative z-10 inline-flex shrink-0 rounded-full ring-4 ring-surface transition-opacity hover:opacity-90"
+              aria-label="Изменить иконку профиля"
+              title="Изменить иконку профиля"
+            >
+              <Avatar
+                name={account.shortName}
+                hue={account.avatarHue}
+                size="lg"
+                className="h-[72px] w-[72px] text-xl"
+                src={avatarSrc}
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary-solid text-white shadow">
+                <Plus size={15} strokeWidth={3} />
+              </span>
+            </button>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <h2 className="min-w-0 text-lg font-bold leading-tight">{account.name}</h2>
+              <div className="shrink-0">
+                {account.role === 'student' ? (
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/25 bg-info-bg px-2.5 py-1.5 text-[12px] font-semibold leading-none text-primary">
+                    <GraduationCap size={13} />
+                    Группа {student?.group}
+                  </span>
+                ) : account.role === 'teacher' ? (
+                  <Badge tone="info">
+                    <BookOpen size={12} />
+                    преподаватель
+                  </Badge>
+                ) : (
+                  <Badge tone="ok">
+                    <ShieldCheck size={12} />
+                    сотрудник
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <p className="w-full pl-[84px] text-sm leading-snug text-muted">
+              {account.role === 'student'
+                ? student?.program
+                : account.role === 'teacher'
+                  ? account.position
+                  : 'Сотрудник деканата'}
+            </p>
           </div>
-          <h2 className="mt-2 text-lg font-bold leading-tight">{account.name}</h2>
-          <p className="mt-0.5 text-[12px] text-muted">
-            {account.role === 'student' ? student?.program : 'Сотрудник деканата'}
-          </p>
 
           <dl className="mt-4 grid gap-2 sm:grid-cols-2">
             {account.role === 'student' && student ? (
               <>
-                <InfoRow icon={<GraduationCap size={14} />} label="Факультет" value={student.faculty} />
-                <InfoRow icon={<BookOpen size={14} />} label="Курс и группа" value={`${student.course} курс · ${student.group}`} />
-                <InfoRow icon={<UserRound size={14} />} label="Куратор" value={student.curator} />
-                <InfoRow icon={<Mail size={14} />} label="Почта" value={account.email} />
-                <InfoRow icon={<Users size={14} />} label="Зачётная книжка" value={student.studentCard} />
+                <InfoRow icon={<GraduationCap size={16} />} label="Факультет" value={student.faculty} />
+                <InfoRow icon={<BookOpen size={16} />} label="Курс" value={`${student.course} курс`} />
+                <InfoRow icon={<UserRound size={16} />} label="Куратор" value={student.curator} />
+                <InfoRow icon={<Mail size={16} />} label="Почта" value={account.email} />
+                <InfoRow icon={<Users size={16} />} label="Зачётная книжка" value={student.studentCard} />
                 <InfoRow
-                  icon={<Sparkles size={14} />}
+                  icon={<BookOpen size={16} />}
                   label="Успеваемость"
                   value={`средний ${formatGpa(gpa(student.grades))} · ${debts ? `${debts} ${plural(debts, 'долг', 'долга', 'долгов')}` : 'без долгов'}`}
                 />
               </>
+            ) : account.role === 'teacher' ? (
+              <>
+                <InfoRow icon={<ShieldCheck size={16} />} label="Должность" value={account.position} />
+                <InfoRow icon={<GraduationCap size={16} />} label="Институт" value={account.faculty} />
+                <InfoRow
+                  icon={<BookOpen size={16} />}
+                  label="Дисциплины"
+                  value={account.subjects.join(', ')}
+                />
+                <InfoRow icon={<Mail size={16} />} label="Почта" value={account.email} />
+              </>
             ) : (
               <>
                 <InfoRow
-                  icon={<ShieldCheck size={14} />}
+                  icon={<ShieldCheck size={16} />}
                   label="Должность"
                   value={account.role === 'staff' ? account.position : '—'}
                 />
                 <InfoRow
-                  icon={<GraduationCap size={14} />}
+                  icon={<GraduationCap size={16} />}
                   label="Институт"
                   value={account.role === 'staff' ? account.faculty : '—'}
                 />
-                <InfoRow icon={<Mail size={14} />} label="Почта" value={account.email} />
+                <InfoRow icon={<Mail size={16} />} label="Почта" value={account.email} />
               </>
             )}
           </dl>
@@ -104,27 +199,21 @@ export function Profile() {
       </section>
 
       <section className="card mb-3 divide-y divide-border">
-        <button className="flex w-full items-center gap-3 px-4 py-3.5 text-left" onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={18} className="text-muted" /> : <Moon size={18} className="text-muted" />}
-          <span className="flex-1 text-sm font-medium">
-            {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          </span>
-          <span className="text-[11px] text-muted">{theme === 'dark' ? 'вкл' : 'выкл'}</span>
-        </button>
-
-        {installEvent && (
-          <button
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
-            onClick={async () => {
+        <button
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+          onClick={async () => {
+            if (installEvent) {
               await installEvent.prompt()
               setInstallEvent(null)
-            }}
-          >
-            <Download size={18} className="text-muted" />
-            <span className="flex-1 text-sm font-medium">Установить на телефон</span>
-            <span className="text-[11px] text-primary">PWA</span>
-          </button>
-        )}
+              return
+            }
+            setInstallHelp(true)
+          }}
+        >
+          <Download size={18} className="text-primary" />
+          <span className="flex-1 text-sm font-medium">Скачать мобильную версию</span>
+          <span className="text-[11px] font-semibold text-primary">PWA</span>
+        </button>
 
         {account.role === 'student' && (
           <button className="flex w-full items-center gap-3 px-4 py-3.5 text-left" onClick={resetDemo}>
@@ -139,51 +228,93 @@ export function Profile() {
         </button>
       </section>
 
-      <section className="card mb-3 p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-info-bg text-primary">
-            <Smartphone size={17} />
-          </span>
-          <div>
-            <h3 className="text-sm font-bold">Это концепт, а не официальный сервис</h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted">
-              Прототип создан для конкурса «Цифровой деканат будущего». Все ФИО,
-              преподаватели, оценки и документы вымышлены. Логотип вуза не используется.
-              Данные хранятся только в этом браузере.
+      <Modal
+        open={iconOpen}
+        onClose={() => {
+          setIconOpen(false)
+          setIconDraft(null)
+          setIconError(null)
+        }}
+        title="Иконка профиля"
+        footer={
+          <div className="flex gap-2">
+            {avatarSrc && (
+              <button type="button" className="btn-soft flex-1 py-2.5" onClick={dropIcon}>
+                Вернуть букву
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-primary flex-1 py-2.5"
+              onClick={applyIcon}
+              disabled={!iconDraft || iconBusy}
+            >
+              Сохранить
+            </button>
+          </div>
+        }
+      >
+        <div className="flex items-center gap-3">
+          <Avatar
+            name={account.shortName}
+            hue={account.avatarHue}
+            size="lg"
+            className="h-20 w-20 text-2xl"
+            src={iconDraft ?? avatarSrc}
+          />
+          <div className="min-w-0 flex-1">
+            <label className="btn-soft inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-[12px]">
+              <Plus size={15} />
+              {iconBusy ? 'Проверяем…' : 'Выбрать файл'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={pickIcon}
+                disabled={iconBusy}
+              />
+            </label>
+            <p className="mt-2 text-[11px] leading-snug text-muted">
+              Только PNG или JPEG, до 2 МБ.
             </p>
           </div>
         </div>
-      </section>
+        {iconError && (
+          <p className="mt-3 rounded-xl border border-danger/30 bg-danger-bg px-3 py-2 text-[12px] font-medium text-danger">
+            {iconError}
+          </p>
+        )}
+      </Modal>
 
-      <section className="card p-4">
-        <h3 className="mb-2 text-sm font-bold">Как устроена безопасность</h3>
-        <ul className="space-y-1.5 text-[11px] leading-relaxed text-muted">
-          <li className="flex gap-2">
-            <ShieldCheck size={13} className="mt-0.5 shrink-0 text-ok" />
-            Пароли хранятся как SHA-256 хэши — открытого пароля в данных нет.
-          </li>
-          <li className="flex gap-2">
-            <ShieldCheck size={13} className="mt-0.5 shrink-0 text-ok" />
-            Заявки и профиль фильтруются по id из сессии, а не по адресу страницы.
-          </li>
-          <li className="flex gap-2">
-            <ShieldCheck size={13} className="mt-0.5 shrink-0 text-ok" />
-            Нет внешних API и ключей: помощник работает на локальных правилах.
-          </li>
-        </ul>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link to="/demo" className="chip">
-            Тестовые аккаунты
-          </Link>
-          <Link to="/requests" className="chip">
-            Мои заявки · {myRequests.length}
-          </Link>
+      <Modal
+        open={installHelp}
+        onClose={() => setInstallHelp(false)}
+        title="Установка на телефон"
+        footer={
+          <button className="btn-primary w-full py-2.5" onClick={() => setInstallHelp(false)}>
+            Понятно
+          </button>
+        }
+      >
+        <div className="space-y-2 text-[13px] leading-relaxed">
+          <p className="flex items-start gap-2">
+            <Smartphone size={16} className="mt-0.5 shrink-0 text-primary" />
+            Кабинет работает как приложение (PWA) и открывается с главного экрана без адресной строки.
+          </p>
+          <p className="text-muted">
+            <span className="font-semibold text-fg">Android / Chrome:</span> меню ⋮ → «Установить
+            приложение» или «Добавить на главный экран».
+          </p>
+          <p className="text-muted">
+            <span className="font-semibold text-fg">iPhone / Safari:</span> кнопка «Поделиться» →
+            «На экран «Домой»».
+          </p>
+          <p className="text-muted">
+            <span className="font-semibold text-fg">Компьютер / Chrome:</span> значок установки в
+            адресной строке.
+          </p>
         </div>
-      </section>
-
-      <p className="mt-4 text-center text-[10px] text-muted">
-        Деканат+ · прототип для конкурса · {new Date().getFullYear()}
-      </p>
+      </Modal>
     </div>
   )
 }
@@ -198,11 +329,11 @@ function InfoRow({
   value: string
 }) {
   return (
-    <div className="flex items-start gap-2 rounded-xl bg-surface-2 px-3 py-2">
-      <span className="mt-0.5 shrink-0 text-muted">{icon}</span>
+    <div className="flex items-center gap-2.5 rounded-xl border border-primary/15 bg-info-bg px-3 py-2">
+      <span className="shrink-0 text-primary/80">{icon}</span>
       <div className="min-w-0">
-        <dt className="text-[10px] uppercase tracking-wide text-muted">{label}</dt>
-        <dd className="truncate text-[12px] font-medium">{value}</dd>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-primary">{label}</dt>
+        <dd className="truncate text-[14px] font-medium">{value}</dd>
       </div>
     </div>
   )

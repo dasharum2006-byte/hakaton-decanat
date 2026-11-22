@@ -1,28 +1,27 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, CheckCircle2, GraduationCap, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowRight, CheckCircle2, GraduationCap, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { Logo } from '../components/AppShell'
-import { DEMO_PASSWORD, STAFF_PASSWORD, students, staff } from '../data/seed'
+import { BackLink } from '../components/BackLink'
+import { ConceptStrip } from '../components/ConceptNote'
+import { DEMO_PASSWORD, STAFF_PASSWORD, TEACHER_PASSWORD, students, staff, teachers } from '../data/seed'
 import { Avatar, Badge } from '../components/ui'
 import { gpa } from '../lib/assistant'
-import { formatGpa, plural } from '../lib/utils'
+import { formatGpa, plural, weekParity } from '../lib/utils'
 
 export function Demo() {
   const { loginAs } = useAuth()
   const navigate = useNavigate()
 
-  const enter = (id: string, role: 'student' | 'staff') => {
+  const enter = (id: string, role: 'student' | 'staff' | 'teacher') => {
     loginAs(id)
-    navigate(role === 'staff' ? '/staff' : '/')
+    navigate(role === 'staff' ? '/staff' : role === 'teacher' ? '/teacher' : '/home')
   }
 
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="flex min-h-dvh flex-col">
       <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
-        <Link to="/" className="btn-ghost -ml-2">
-          <ArrowLeft size={16} />
-          На главную
-        </Link>
+        <BackLink to="/" label="Ко входу" className="mb-0 -ml-2" />
         <Logo />
       </header>
 
@@ -31,8 +30,9 @@ export function Demo() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Тестовые аккаунты</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Войдите в один клик — пароль вводить не нужно. У студентов разные данные:
-            оценки, долги, расписание и заявки. Попробуйте открыть чужую заявку по
-            прямой ссылке: доступа не будет.
+            оценки, долги, расписание и заявки. Сотрудник деканата обрабатывает заявки,
+            преподаватель видит свои дисциплины, группы и студентов. Попробуйте открыть
+            чужую заявку по прямой ссылке: доступа не будет.
           </p>
         </div>
 
@@ -77,7 +77,8 @@ export function Demo() {
                       : 'без долгов'}
                   </Badge>
                   <Badge tone="default">
-                    {s.schedule.length} {plural(s.schedule.length, 'пара', 'пары', 'пар')} в неделю
+                    {s.schedule.filter((l) => !l.parity || l.parity === weekParity()).length}{' '}
+                    {plural(s.schedule.filter((l) => !l.parity || l.parity === weekParity()).length, 'пара', 'пары', 'пар')} в неделю
                   </Badge>
                 </div>
 
@@ -126,6 +127,53 @@ export function Demo() {
           </div>
         </article>
 
+        <h2 className="mb-3 mt-8 text-sm font-bold uppercase tracking-wide text-muted">
+          Кабинет преподавателя
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {teachers.map((t) => {
+            const groups = [...new Set(students
+              .filter((s) => s.grades.some((g) => t.subjects.includes(g.subject)))
+              .map((s) => s.group))]
+            return (
+              <article key={t.id} className="card flex min-w-0 flex-col p-5">
+                <div className="flex items-center gap-3">
+                  <Avatar name={t.shortName} hue={t.avatarHue} />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold">{t.name}</h3>
+                    <p className="text-xs text-muted">
+                      {t.position} · {t.faculty}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {t.subjects.map((subj) => (
+                    <Badge key={subj} tone="info">
+                      {subj}
+                    </Badge>
+                  ))}
+                  <Badge tone="default">
+                    {groups.length
+                      ? `групп${groups.length > 1 ? 'ы' : 'а'}: ${groups.join(', ')}`
+                      : 'группы не назначены'}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-border bg-bg/60 px-3 py-2 text-[11px] leading-relaxed text-muted">
+                  Логин <code className="font-semibold text-fg">{t.login}</code> · пароль{' '}
+                  <code className="font-semibold text-fg">{TEACHER_PASSWORD}</code>
+                </div>
+
+                <button className="btn-primary mt-4 w-full" onClick={() => enter(t.id, 'teacher')}>
+                  Войти как {t.shortName}
+                  <ArrowRight size={16} />
+                </button>
+              </article>
+            )
+          })}
+        </div>
+
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="card flex items-start gap-3 p-4">
             <CheckCircle2 className="mt-0.5 shrink-0 text-ok" size={18} />
@@ -154,6 +202,8 @@ export function Demo() {
           информационным системам вуза.
         </p>
       </main>
+
+      <ConceptStrip className="mt-auto border-t border-primary/25" />
     </div>
   )
 }

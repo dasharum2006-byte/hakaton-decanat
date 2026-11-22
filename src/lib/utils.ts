@@ -38,6 +38,28 @@ export function startOfWeek(date = new Date()): Date {
   return d
 }
 
+export function isoWeekNumber(date = new Date()): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
+
+/** Номер учебной недели от 1 сентября (первая неделя — та, что содержит 1 сентября) */
+export function academicWeekNumber(date = new Date()): number {
+  const year = date.getMonth() >= 8 ? date.getFullYear() : date.getFullYear() - 1
+  const start = startOfWeek(new Date(year, 8, 1))
+  const current = startOfWeek(date)
+  const days = Math.round((current.getTime() - start.getTime()) / 86400000)
+  return Math.floor(days / 7) + 1
+}
+
+/** Чётность учебной недели: odd — нечётная, even — чётная */
+export function weekParity(date = new Date()): 'odd' | 'even' {
+  return isoWeekNumber(date) % 2 === 1 ? 'odd' : 'even'
+}
+
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date)
   d.setDate(d.getDate() + days)
@@ -106,6 +128,35 @@ export function timeUntil(iso: string): string {
   return formatDate(iso)
 }
 
+export type DeadlineTone = 'danger' | 'warn' | 'default'
+
+/** Разница в календарных днях: 0 — сегодня, 1 — завтра */
+export function daysUntil(iso: string): number {
+  const target = new Date(iso)
+  const now = new Date()
+  const a = new Date(target.getFullYear(), target.getMonth(), target.getDate())
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((a.getTime() - b.getTime()) / 86400000)
+}
+
+/** «сегодня», «завтра», «через 3 дня» */
+export function deadlineLabel(iso: string): string {
+  const days = daysUntil(iso)
+  if (days < 0) return 'просрочено'
+  if (days === 0) return 'сегодня'
+  if (days === 1) return 'завтра'
+  if (days < 7) return `через ${days} ${plural(days, 'день', 'дня', 'дней')}`
+  return formatDate(iso)
+}
+
+/** Сегодня и завтра — красным, до трёх дней — жёлтым */
+export function deadlineTone(iso: string): DeadlineTone {
+  const days = daysUntil(iso)
+  if (days <= 1) return 'danger'
+  if (days <= 3) return 'warn'
+  return 'default'
+}
+
 export function plural(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100
@@ -125,7 +176,7 @@ export function initials(name: string): string {
 
 export function avatarStyle(hue: number) {
   return {
-    background: `linear-gradient(135deg, hsl(${hue} 78% 58%), hsl(${(hue + 40) % 360} 82% 52%))`,
+    background: `hsl(${hue} 38% 40%)`,
   }
 }
 

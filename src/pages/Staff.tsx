@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, Clock, Inbox, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Clock, Inbox, Search } from 'lucide-react'
 import { useData } from '../lib/store'
 import { requestTypes, students } from '../data/seed'
 import { cn, timeAgo } from '../lib/utils'
@@ -53,13 +53,8 @@ export function StaffDashboard() {
     <div className="animate-rise">
       <PageHeader
         title="Заявки студентов"
-        subtitle="Кабинет сотрудника деканата · демо"
-        right={
-          <Link to="/profile" className="btn-soft px-3 py-2 text-xs">
-            <ShieldCheck size={15} />
-            Профиль
-          </Link>
-        }
+        
+        
       />
 
       <section className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -101,7 +96,7 @@ export function StaffDashboard() {
             return (
               <article key={r.id} className="card p-4">
                 <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-bg text-primary">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-primary">
                     {type && <RequestIcon name={type.icon} />}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -150,11 +145,7 @@ export function StaffDashboard() {
         )}
       </div>
 
-      <p className="mt-6 rounded-2xl border border-border bg-surface px-4 py-3 text-[11px] leading-relaxed text-muted">
-        <span className="font-semibold text-fg">Роли.</span> Сотрудник видит заявки всех
-        студентов и меняет статусы. Студент видит только свои — проверка выполняется по
-        данным сессии. Все заявки в демо вымышлены.
-      </p>
+     
     </div>
   )
 }
@@ -178,7 +169,7 @@ function Stat({
   }
   return (
     <div className="card p-3.5">
-      <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-lg', tones[tone])}>
+      <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full', tones[tone])}>
         {icon}
       </span>
       <p className="mt-1.5 text-2xl font-extrabold leading-none">{value}</p>

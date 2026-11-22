@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUp, MessageCircle, Sparkles, X } from 'lucide-react'
+import { ArrowUp, X } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useData } from '../lib/store'
 import { assistantReply } from '../lib/assistant'
 import { requestTypes } from '../data/seed'
 import { cn, uid } from '../lib/utils'
 import { Avatar } from './ui'
+import kotikFace from '../assets/kotik-face.png'
 
 interface ChatMessage {
   id: string
@@ -27,7 +28,7 @@ function chipLabel(chip: string): string {
   return chip
 }
 
-function useChat() {
+function useChat(onNavigate?: () => void) {
   const { student } = useAuth()
   const { myRequests } = useData()
   const navigate = useNavigate()
@@ -80,11 +81,13 @@ function useChat() {
         },
       ])
       navigate(`/requests/new?type=${typeId}`)
+      onNavigate?.()
       return
     }
 
     if (text.startsWith('nav:')) {
       navigate(text.slice(4))
+      onNavigate?.()
       return
     }
 
@@ -106,8 +109,14 @@ function useChat() {
   return { messages: all, typing, send }
 }
 
-function ChatBody({ compact = false }: { compact?: boolean }) {
-  const { messages, typing, send } = useChat()
+function ChatBody({
+  compact = false,
+  onNavigate,
+}: {
+  compact?: boolean
+  onNavigate?: () => void
+}) {
+  const { messages, typing, send } = useChat(onNavigate)
   const [value, setValue] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -128,8 +137,8 @@ function ChatBody({ compact = false }: { compact?: boolean }) {
         {messages.map((m) => (
           <div key={m.id} className={cn('flex gap-2', m.role === 'user' ? 'justify-end' : 'justify-start')}>
             {m.role === 'bot' && (
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-white">
-                <Sparkles size={14} />
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-border">
+                <img src={kotikFace} alt="" className="h-full w-full object-cover" />
               </span>
             )}
             <div className={cn('max-w-[85%]', m.role === 'user' && 'max-w-[80%]')}>
@@ -157,8 +166,8 @@ function ChatBody({ compact = false }: { compact?: boolean }) {
         ))}
         {typing && (
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-white">
-              <Sparkles size={14} />
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-border">
+              <img src={kotikFace} alt="" className="h-full w-full object-cover" />
             </span>
             <div className="flex gap-1 rounded-2xl rounded-bl-md bg-surface-2 px-3 py-3">
               {[0, 150, 300].map((delay) => (
@@ -215,7 +224,6 @@ function ChatBody({ compact = false }: { compact?: boolean }) {
 /** Плавающая кнопка + панель чата */
 export function Assistant() {
   const [open, setOpen] = useState(false)
-  const { student } = useAuth()
 
   return (
     <>
@@ -228,32 +236,30 @@ export function Assistant() {
           />
           <div className="animate-pop relative flex h-[85dvh] w-full flex-col rounded-t-3xl border border-border bg-surface shadow-2xl sm:h-[600px] sm:max-h-[80dvh] sm:w-[400px] sm:rounded-3xl">
             <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white">
-                <Sparkles size={17} />
+              <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-border">
+                <img src={kotikFace} alt="" className="h-full w-full object-cover" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold leading-tight">Помощник деканата</p>
-                <p className="text-[11px] text-muted">Отвечает по данным прототипа</p>
+                <p className="text-sm font-bold leading-tight">Декот</p>
               </div>
               <button className="btn-ghost px-2 py-1" onClick={() => setOpen(false)} aria-label="Закрыть">
                 <X size={18} />
               </button>
             </div>
-            <ChatBody compact />
+            <ChatBody compact onNavigate={() => setOpen(false)} />
           </div>
         </div>
       )}
 
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-primary to-accent px-4 py-3.5 text-sm font-semibold text-white shadow-xl shadow-primary/30 transition-transform hover:scale-105 active:scale-95 lg:bottom-6 lg:right-6"
+        className="fixed bottom-[calc(116px+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-2 rounded-full bg-primary-solid px-4 py-3.5 text-sm font-semibold text-white shadow-lg transition-colors hover:brightness-110 lg:bottom-6 lg:right-6"
         aria-label="Открыть помощника деканата"
       >
-        <MessageCircle size={20} />
+        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white">
+          <img src={kotikFace} alt="" className="h-full w-full object-cover" />
+        </span>
         <span className="hidden sm:inline">Спросить</span>
-        {student && (
-          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-ok" />
-        )}
       </button>
     </>
   )
@@ -267,10 +273,7 @@ export function AssistantPageChat() {
       <div className="mb-4 flex items-center gap-3">
         <Avatar name={student?.shortName ?? '?'} hue={student?.avatarHue ?? 250} size="md" />
         <div>
-          <h1 className="text-xl font-bold">Помощник деканата</h1>
-          <p className="text-xs text-muted">
-            Работает на данных прототипа · без внешних API и ключей
-          </p>
+          <h1 className="text-xl font-bold">Декот</h1>
         </div>
       </div>
       <div className="card flex h-[calc(100dvh-230px)] min-h-[420px] flex-col overflow-hidden lg:h-[calc(100dvh-220px)]">

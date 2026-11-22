@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+<style>
+  .wall { fill:#e2e8f0; }
+  .room { fill:#ffffff; stroke:#cbd5e1; stroke-width:2; }
+  .room-special { fill:#eef6ff; stroke:#bfd7f5; stroke-width:2; }
+  .corr { fill:#f1f5f9; }
+  .num { font: 700 46px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; fill:#0f172a; }
+  .cap { font: 500 24px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; fill:#64748b; }
+  .mut { font: 500 20px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; fill:#94a3b8; }
+  .stair { stroke:#94a3b8; stroke-width:3; fill:none; }
+</style>
+<rect width="1200" height="800" fill="#f8fafc"/>
+<rect class="wall" x="24" y="24" width="1152" height="752" rx="18"/>
+<rect class="corr" x="60" y="320" width="1025" height="160" rx="6"/>
+<rect class="room" x="60" y="60" width="245" height="260" rx="10"/>
+<text class="num" x="182.5" y="200.0" text-anchor="middle">208</text>
+<rect class="room" x="320" y="60" width="245" height="260" rx="10"/>
+<text class="num" x="442.5" y="200.0" text-anchor="middle">205</text>
+<rect class="room" x="580" y="60" width="245" height="260" rx="10"/>
+<text class="num" x="702.5" y="200.0" text-anchor="middle">202</text>
+<rect class="room" x="840" y="60" width="245" height="260" rx="10"/>
+<text class="num" x="962.5" y="200.0" text-anchor="middle">201</text>
+<rect class="room" x="60" y="480" width="245" height="260" rx="10"/>
+<text class="num" x="182.5" y="620.0" text-anchor="middle">210</text>
+<rect class="room" x="320" y="480" width="245" height="260" rx="10"/>
+<text class="num" x="442.5" y="620.0" text-anchor="middle">212</text>
+<rect class="room" x="580" y="480" width="245" height="260" rx="10"/>
+<text class="num" x="702.5" y="620.0" text-anchor="middle">215</text>
+<rect class="room" x="840" y="480" width="245" height="260" rx="10"/>
+<text class="num" x="962.5" y="620.0" text-anchor="middle">218</text>
+<rect class="room" x="1100" y="330" width="52" height="140" rx="8"/>
+<path class="stair" d="M 1110 342 h 32"/>
+<path class="stair" d="M 1110 372 h 32"/>
+<path class="stair" d="M 1110 402 h 32"/>
+<path class="stair" d="M 1110 432 h 32"/>
+<text class="cap" x="1092" y="405" text-anchor="end" font-size="13">лестница</text>
+</svg>

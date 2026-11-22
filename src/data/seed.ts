@@ -1,5 +1,6 @@
 import type {
   AppNotification,
+  Assessment,
   Deadline,
   Grade,
   Lesson,
@@ -7,6 +8,7 @@ import type {
   Staff,
   Student,
   StudentRequest,
+  Teacher,
 } from '../lib/types'
 import { isoDay, uid } from '../lib/utils'
 
@@ -24,12 +26,15 @@ const inDays = (d: number, hour = 18) => {
 
 export const DEMO_PASSWORD = 'demo1234'
 export const STAFF_PASSWORD = 'staff1234'
+export const TEACHER_PASSWORD = 'teacher1234'
 
 /** SHA-256 от demo1234 / staff1234 — пароли не хранятся в открытом виде */
 const STUDENT_HASH =
   '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d'
 const STAFF_HASH =
   '02defbfb8190f9d0719ef7a23da2049bd2e61442bc14021a6d8a4ae35ca334b7'
+const TEACHER_HASH =
+  'dfff8b45f566ab42bcda647140c53ada2ea8614e689ef51f77c23a68f77afad3'
 
 const L = (
   id: string,
@@ -41,23 +46,24 @@ const L = (
   room: string,
   teacher: string,
   change?: Lesson['change'],
-): Lesson => ({ id, day, start, end, subject, type, room, teacher, change })
+  parity?: Lesson['parity'],
+): Lesson => ({ id, day, start, end, subject, type, room, teacher, change, parity })
 
 // ────────────────────────── Анна: группа ИВТ-23-1 ──────────────────────────
 
 const annaSchedule: Lesson[] = [
   L('a1', 1, '09:00', '10:30', 'Математический анализ', 'Лекция', '412', 'Белова Е. А.'),
   L('a2', 1, '10:40', '12:10', 'Базы данных', 'Лабораторная', '305', 'Гринёв П. С.'),
-  L('a3', 1, '12:40', '14:10', 'Философия', 'Семинар', '208', 'Мельник О. В.'),
+  L('a3', 1, '12:40', '14:10', 'Философия', 'Семинар', '208', 'Соловьёв А. Н.'),
   L('a4', 2, '09:00', '10:30', 'Компьютерные сети', 'Лекция', '401', 'Зотов А. Р.'),
   L('a5', 2, '10:40', '12:10', 'Компьютерные сети', 'Лабораторная', '310', 'Зотов А. Р.', {
     kind: 'substitute',
     note: 'Замена: занятие проведёт Ким И. П.',
-  }),
+  }, 'odd'),
   L('a6', 2, '12:40', '14:10', 'Физическая культура', 'Практика', 'Спортзал 2', 'Гусев Д. Н.'),
   L('a7', 3, '10:40', '12:10', 'Программирование на Kotlin', 'Лекция', '305', 'Романов К. И.'),
   L('a8', 3, '12:40', '14:10', 'Программирование на Kotlin', 'Лабораторная', '306', 'Романов К. И.'),
-  L('a9', 3, '14:20', '15:50', 'Проектная деятельность', 'Практика', 'Коворкинг', 'Орлов С. А.'),
+  L('a9', 3, '14:20', '15:50', 'Проектная деятельность', 'Практика', '315', 'Орлов С. А.', undefined, 'odd'),
   L('a10', 4, '09:00', '10:30', 'Математический анализ', 'Практика', '412', 'Белова Е. А.'),
   L('a11', 4, '10:40', '12:10', 'Базы данных', 'Лекция', '412', 'Гринёв П. С.', {
     kind: 'moved',
@@ -65,13 +71,21 @@ const annaSchedule: Lesson[] = [
   }),
   L('a12', 4, '12:40', '14:10', 'Английский язык', 'Практика', '117', 'Смит Дж.'),
   L('a13', 5, '09:00', '10:30', 'Физика', 'Лекция', '210', 'Дьяконов В. В.'),
-  L('a14', 5, '10:40', '12:10', 'Физика', 'Лабораторная', '112', 'Дьяконов В. В.'),
+  L('a14', 5, '10:40', '12:10', 'Физика', 'Лабораторная', '112', 'Дьяконов В. В.', undefined, 'odd'),
   L('a15', 5, '12:40', '14:10', 'История России', 'Семинар', '208', 'Мельник О. В.'),
-  L('a16', 6, '10:40', '12:10', 'Проектная деятельность', 'Практика', '305', 'Орлов С. А.'),
+  L('a16', 6, '10:40', '12:10', 'Проектная деятельность', 'Практика', '305', 'Орлов С. А.', undefined, 'odd'),
   L('a17', 6, '12:40', '14:10', 'Физическая культура', 'Практика', 'Спортзал 2', 'Гусев Д. Н.', {
     kind: 'canceled',
     note: 'Отменено: самостоятельная подготовка',
   }),
+  // чётная неделя
+  L('a18', 2, '10:40', '12:10', 'Компьютерные сети', 'Практика', '310', 'Зотов А. Р.', undefined, 'even'),
+  L('a19', 3, '14:20', '15:50', 'Научный семинар', 'Семинар', '306', 'Романов К. И.', undefined, 'even'),
+  L('a20', 5, '10:40', '12:10', 'Физика', 'Практика', '112', 'Дьяконов В. В.', undefined, 'even'),
+  L('a21', 6, '10:40', '12:10', 'Консультация по курсовой', 'Консультация', '305', 'Романов К. И.', undefined, 'even'),
+  // консультации по истории — вторник и четверг
+  L('a22', 2, '16:00', '17:30', 'Консультация по истории', 'Консультация', '208', 'Мельник О. В.'),
+  L('a23', 4, '16:00', '17:30', 'Консультация по истории', 'Консультация', '208', 'Мельник О. В.'),
 ]
 
 const annaGrades: Grade[] = [
@@ -80,17 +94,15 @@ const annaGrades: Grade[] = [
   { id: 'g3', subject: 'Программирование на Kotlin', teacher: 'Романов К. И.', credits: 4, control: 'Зачёт', grade: 'Зачтено', status: 'closed', semester: 'Осень 2026' },
   { id: 'g4', subject: 'Компьютерные сети', teacher: 'Зотов А. Р.', credits: 4, control: 'Экзамен', grade: '4', score: 78, status: 'closed', semester: 'Осень 2026' },
   { id: 'g5', subject: 'Физика', teacher: 'Дьяконов В. В.', credits: 3, control: 'Зачёт', grade: 'Зачтено', status: 'closed', semester: 'Осень 2026' },
-  { id: 'g6', subject: 'Философия', teacher: 'Мельник О. В.', credits: 2, control: 'Зачёт', grade: 'Зачтено', status: 'closed', semester: 'Осень 2026' },
+  { id: 'g6', subject: 'Философия', teacher: 'Соловьёв А. Н.', credits: 2, control: 'Зачёт', grade: 'Зачтено', status: 'closed', semester: 'Осень 2026' },
   { id: 'g7', subject: 'История России', teacher: 'Мельник О. В.', credits: 2, control: 'Зачёт', status: 'in-progress', semester: 'Осень 2026' },
   { id: 'g8', subject: 'Проектная деятельность', teacher: 'Орлов С. А.', credits: 5, control: 'Зачёт', status: 'in-progress', semester: 'Осень 2026' },
   { id: 'g9', subject: 'Курсовая работа', teacher: 'Романов К. И.', credits: 5, control: 'Курсовая', status: 'in-progress', semester: 'Осень 2026' },
 ]
 
 const annaDeadlines: Deadline[] = [
-  { id: 'd1', title: 'Курсовая: глава 2', subject: 'Курсовая работа', at: inDays(3, 18), kind: 'курсовая' },
-  { id: 'd2', title: 'Контрольная по матанализу', subject: 'Математический анализ', at: inDays(5, 10), kind: 'контрольная' },
+  { id: 'd1', title: 'Курсовая: глава 2', subject: 'Курсовая работа', at: inDays(1, 18), kind: 'курсовая' },
   { id: 'd3', title: 'Защита проекта', subject: 'Проектная деятельность', at: inDays(9, 14), kind: 'проект' },
-  { id: 'd4', title: 'Зачёт по истории', subject: 'История России', at: inDays(14, 10), kind: 'зачёт' },
   { id: 'd5', title: 'Экзамен: базы данных', subject: 'Базы данных', at: inDays(18, 9), kind: 'экзамен' },
 ]
 
@@ -101,18 +113,22 @@ const markSchedule: Lesson[] = [
   L('m2', 1, '14:20', '15:50', 'Основы программирования', 'Лабораторная', '309', 'Романов К. И.'),
   L('m3', 2, '09:00', '10:30', 'Дискретная математика', 'Лекция', '318', 'Тарасов И. И.'),
   L('m4', 2, '10:40', '12:10', 'Английский язык', 'Практика', '117', 'Смит Дж.'),
-  L('m5', 2, '12:40', '14:10', 'Физическая культура', 'Практика', 'Спортзал 1', 'Гусев Д. Н.'),
+  L('m5', 2, '12:40', '14:10', 'Физическая культура', 'Практика', 'Спортзал 1', 'Гусев Д. Н.', undefined, 'odd'),
   L('m6', 3, '09:00', '10:30', 'Основы программирования', 'Лекция', '309', 'Романов К. И.'),
   L('m7', 3, '10:40', '12:10', 'История России', 'Семинар', '208', 'Мельник О. В.'),
   L('m8', 4, '12:40', '14:10', 'Алгебра и геометрия', 'Практика', '318', 'Тарасов И. И.'),
   L('m9', 4, '14:20', '15:50', 'Дискретная математика', 'Семинар', '318', 'Тарасов И. И.', {
     kind: 'moved',
     note: 'Перенос: занятие начнётся в 15:00',
-  }),
+  }, 'odd'),
   L('m10', 5, '09:00', '10:30', 'Web-технологии', 'Лекция', '305', 'Орлов С. А.'),
-  L('m11', 5, '10:40', '12:10', 'Web-технологии', 'Лабораторная', '306', 'Орлов С. А.'),
+  L('m11', 5, '10:40', '12:10', 'Web-технологии', 'Лабораторная', '306', 'Орлов С. А.', undefined, 'odd'),
   L('m12', 5, '12:40', '14:10', 'Физика', 'Лекция', '210', 'Дьяконов В. В.'),
   L('m13', 6, '10:40', '12:10', 'Курсовая работа', 'Консультация', '305', 'Орлов С. А.'),
+  // чётная неделя
+  L('m14', 2, '12:40', '14:10', 'Основы программирования', 'Практика', '309', 'Романов К. И.', undefined, 'even'),
+  L('m15', 4, '14:20', '15:50', 'Алгебра и геометрия', 'Практика', '318', 'Тарасов И. И.', undefined, 'even'),
+  L('m16', 5, '10:40', '12:10', 'Web-технологии', 'Практика', '306', 'Орлов С. А.', undefined, 'even'),
 ]
 
 const markGrades: Grade[] = [
@@ -130,6 +146,81 @@ const markDeadlines: Deadline[] = [
   { id: 'md2', title: 'Пересдача дискретной математики', subject: 'Дискретная математика', at: inDays(6, 11), kind: 'экзамен' },
   { id: 'md3', title: 'Лабораторная №4', subject: 'Web-технологии', at: inDays(4, 23), kind: 'контрольная' },
   { id: 'md4', title: 'Зачёт по физике', subject: 'Физика', at: inDays(12, 10), kind: 'зачёт' },
+]
+
+/**
+ * Практические работы берутся из дисциплин кабинета: у каждого предмета
+ * в процессе появляется дедлайн, который затем попадает в расписание
+ * и в уведомления.
+ */
+const practicalDeadlines = (grades: Grade[]): Deadline[] =>
+  grades
+    .filter((g) => g.status === 'in-progress')
+    .map((g, i) => ({
+      id: `p_${g.id}`,
+      title: `Практическая ${i + 3}`,
+      subject: g.subject,
+      at: inDays(1 + i * 4, 18),
+      kind: 'практика' as const,
+    }))
+
+/**
+ * Работы приходят из основной системы вуза: тип, предмет и период.
+ * Если указана «3 неделя ноября», период считается как дни 15–21 (3-я семидневка месяца).
+ */
+const dayRange = (fromDays: number, toDays: number) => {
+  const from = new Date(now)
+  from.setDate(from.getDate() + fromDays)
+  from.setHours(0, 0, 0, 0)
+  const to = new Date(now)
+  to.setDate(to.getDate() + toDays)
+  to.setHours(23, 59, 59, 999)
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
+const monthWeek = (monthOffset: number, week: number) => {
+  const base = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+  const from = new Date(base.getFullYear(), base.getMonth(), (week - 1) * 7 + 1)
+  const to = new Date(base.getFullYear(), base.getMonth(), week * 7, 23, 59, 59, 999)
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
+const annaAssessments: Assessment[] = [
+  {
+    // контрольная/тестирование привязываются только к паре типа «Практика»
+    id: 'as_a1',
+    subject: 'Математический анализ',
+    title: 'Контрольная работа 1',
+    ...dayRange(1, 4),
+  },
+  {
+    id: 'as_a2',
+    subject: 'Проектная деятельность',
+    title: 'Тестирование',
+    ...monthWeek(0, 3),
+  },
+  {
+    // коллоквиум привязывается только к «Лекции»
+    id: 'as_a3',
+    subject: 'Базы данных',
+    title: 'Коллоквиум',
+    ...monthWeek(0, 3),
+  },
+]
+
+const markAssessments: Assessment[] = [
+  {
+    id: 'as_m1',
+    subject: 'Алгебра и геометрия',
+    title: 'Контрольная работа 1',
+    ...dayRange(1, 4),
+  },
+  {
+    id: 'as_m2',
+    subject: 'Дискретная математика',
+    title: 'Коллоквиум',
+    ...monthWeek(0, 3),
+  },
 ]
 
 // ────────────────────────── Аккаунты ──────────────────────────
@@ -153,7 +244,9 @@ export const students: Student[] = [
     admissionYear: 2023,
     schedule: annaSchedule,
     grades: annaGrades,
-    deadlines: annaDeadlines,
+    prevAverage: 4.55,
+    deadlines: [...annaDeadlines, ...practicalDeadlines(annaGrades)],
+    assessments: annaAssessments,
   },
   {
     id: 's_mark',
@@ -173,7 +266,9 @@ export const students: Student[] = [
     admissionYear: 2024,
     schedule: markSchedule,
     grades: markGrades,
-    deadlines: markDeadlines,
+    prevAverage: 4.35,
+    deadlines: [...markDeadlines, ...practicalDeadlines(markGrades)],
+    assessments: markAssessments,
   },
 ]
 
@@ -192,7 +287,36 @@ export const staff: Staff[] = [
   },
 ]
 
-export const accounts = [...students, ...staff]
+export const teachers: Teacher[] = [
+  {
+    id: 't_grinev',
+    login: 'grinev',
+    passwordHash: TEACHER_HASH,
+    role: 'teacher',
+    name: 'Гринёв Павел Сергеевич',
+    shortName: 'Павел',
+    email: 'p.grinev@example.edu',
+    avatarHue: 205,
+    position: 'Старший преподаватель',
+    faculty: 'Институт цифровых технологий',
+    subjects: ['Базы данных'],
+  },
+  {
+    id: 't_melnik',
+    login: 'melnik',
+    passwordHash: TEACHER_HASH,
+    role: 'teacher',
+    name: 'Мельник Ольга Викторовна',
+    shortName: 'Ольга',
+    email: 'o.melnik@example.edu',
+    avatarHue: 318,
+    position: 'Доцент',
+    faculty: 'Институт цифровых технологий',
+    subjects: ['История России', 'Философия'],
+  },
+]
+
+export const accounts = [...students, ...staff, ...teachers]
 
 // ────────────────────────── Заявки ──────────────────────────
 
@@ -381,6 +505,16 @@ export const initialNotifications: AppNotification[] = [
     href: '#/schedule',
   },
   {
+    id: 'n2b',
+    studentId: 's_anna',
+    kind: 'schedule',
+    title: 'Отмена занятия',
+    body: 'Физика (практика) в пятницу отменена — задание появится в разделе «Учёба».',
+    at: hoursAgo(2),
+    read: false,
+    href: '#/schedule',
+  },
+  {
     id: 'n3',
     studentId: 's_anna',
     kind: 'request',
@@ -389,16 +523,6 @@ export const initialNotifications: AppNotification[] = [
     at: hoursAgo(4),
     read: false,
     href: '#/requests/req_1001',
-  },
-  {
-    id: 'n4',
-    studentId: 's_mark',
-    kind: 'deadline',
-    title: 'Дедлайн через 2 дня',
-    body: 'Курсовая работа: черновик — сдать до пятницы, 18:00.',
-    at: hoursAgo(7),
-    read: false,
-    href: '#/grades',
   },
   {
     id: 'n5',

@@ -16,9 +16,14 @@ export function Toaster() {
   }, [])
 
   return (
-    <div className="pointer-events-none fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:items-end">
+    <div className="pointer-events-none fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[45] flex flex-col items-center gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:items-end">
       {items.map((t) => {
-        const Icon = t.tone === 'success' ? CheckCircle2 : t.tone === 'warn' ? TriangleAlert : Info
+        const Icon =
+          t.tone === 'success'
+            ? CheckCircle2
+            : t.tone === 'warn' || t.tone === 'danger'
+              ? TriangleAlert
+              : Info
         return (
           <div
             key={t.id}
@@ -26,6 +31,7 @@ export function Toaster() {
               'animate-rise pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border bg-surface px-4 py-3 shadow-xl',
               t.tone === 'success' && 'border-ok/30',
               t.tone === 'warn' && 'border-warn/30',
+              t.tone === 'danger' && 'border-danger/40',
               !t.tone && 'border-border',
             )}
             role="status"
@@ -34,7 +40,13 @@ export function Toaster() {
               size={18}
               className={cn(
                 'mt-0.5 shrink-0',
-                t.tone === 'success' ? 'text-ok' : t.tone === 'warn' ? 'text-warn' : 'text-primary',
+                t.tone === 'success'
+                  ? 'text-ok'
+                  : t.tone === 'danger'
+                    ? 'text-danger'
+                    : t.tone === 'warn'
+                      ? 'text-warn'
+                      : 'text-primary',
               )}
             />
             <div className="min-w-0 flex-1">
